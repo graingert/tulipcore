@@ -1,4 +1,3 @@
-import abc
 import sys
 
 
@@ -7,7 +6,7 @@ WRITE = 2
 _sys_modules = {}
 
 
-class MonkeyJail:
+class MonkeyJail(object):
     def __init__(self):
         self.saved = {}
 
@@ -25,7 +24,7 @@ class MonkeyJail:
         sys.modules.update(self.saved)
 
 
-class RefMixin:
+class RefMixin(object):
     def __init__(self, loop, ref=True):
         self.loop = loop
         self.ref = ref
@@ -45,9 +44,9 @@ class RefMixin:
         self._decrease_ref()
 
 
-class Watcher(RefMixin, metaclass=abc.ABCMeta):
+class Watcher(RefMixin):
     def __init__(self, loop, ref=True):
-        super().__init__(loop, ref)
+        super(Watcher, self).__init__(loop, ref)
         self._callback = None
         self.args = ()
         self.pending = False
@@ -74,7 +73,6 @@ class Watcher(RefMixin, metaclass=abc.ABCMeta):
         if self.active:
             self._increase_ref()
 
-    @abc.abstractmethod
     def _start(self, **kwargs):
         pass
 
@@ -103,7 +101,7 @@ class Watcher(RefMixin, metaclass=abc.ABCMeta):
 
 class TimerWatcher(Watcher):
     def __init__(self, loop, after, ref=True):
-        super().__init__(loop, ref=ref)
+        super(TimerWatcher, self).__init__(loop, ref=ref)
         self.after = after
         self._handle = None
 
@@ -117,7 +115,7 @@ class TimerWatcher(Watcher):
 
     def _invoke(self):
         self.active = False
-        super()._invoke()
+        super(TimerWatcher, self)._invoke()
 
     def again(self, callback, *args, **kwargs):
         self.stop()
@@ -126,7 +124,7 @@ class TimerWatcher(Watcher):
 
 class IoWatcher(Watcher):
     def __init__(self, loop, fd, events, ref=True, priority=None):
-        super().__init__(loop, ref=ref)
+        super(IoWatcher, self).__init__(loop, ref=ref)
         self.fd = fd
         self.events = events
         self._reader = events & READ
@@ -159,7 +157,7 @@ class ForkWatcher(Watcher):
 
 class AsyncWatcher(Watcher):
     def __init__(self, loop, ref=True):
-        super().__init__(loop, ref=ref)
+        super(AsyncWatcher, self).__init__(loop, ref=ref)
         self._handle = None
 
     def _start(self):
@@ -176,7 +174,7 @@ class AsyncWatcher(Watcher):
 
 class ChildWatcher(Watcher):
     def __init__(self, loop, pid, ref=True):
-        super().__init__(loop, ref=ref)
+        super(ChildWatcher, self).__init__(loop, ref=ref)
         self.pid = pid
         self.watcher = self.loop.policy.get_child_watcher()
         self.rcode = None
@@ -197,7 +195,7 @@ class ChildWatcher(Watcher):
 
 class SignalWatcher(Watcher):
     def __init__(self, loop, signum, ref=True):
-        super().__init__(loop, ref=ref)
+        super(SignalWatcher, self).__init__(loop, ref=ref)
         self.signum = signum
 
     def _start(self):
@@ -210,7 +208,7 @@ class SignalWatcher(Watcher):
 
 class Callback(RefMixin):
     def __init__(self, loop, callback, args):
-        super().__init__(loop)
+        super(Callback, self).__init__(loop)
         self.callback = callback
         self.args = args
         self._handle = self.loop.aio.call_soon(self.run)
@@ -243,12 +241,17 @@ class Callback(RefMixin):
         return self.callback is not None
 
 
-class Loop:
+class Loop(object):
     MAXPRI = 0
 
     def __init__(self, flags=None, default=None):
         with MonkeyJail():
-            import asyncio
+            try:
+                # Use builtin asyncio on Python 3.4+, or Tulip on Python 3.3
+                import asyncio
+            except ImportError:
+                # Use Trollius on Python <= 3.2
+                import trollius as asyncio
             self.policy = asyncio.get_event_loop_policy()
             self.aio = self.policy.get_event_loop()
         self.error_handler = None

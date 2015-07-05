@@ -24,6 +24,10 @@ setup(
     url='https://github.com/decentfox/tulipcore',
     py_modules=['tulipcore'],
     install_requires=['gevent>=1.1'],
+    extras_require={
+        ':python_version in "2.6, 2.7"': ['trollius'],
+        ':python_version == "3.3"': ['asyncio'],
+    },
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.3",
